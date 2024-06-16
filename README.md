@@ -58,7 +58,7 @@ This will generate files into the pb directory
 
 ### HTTP Endpoints
 
-- **GET /userapi/getall**: Fetches all users.
+- **GET /userapi/getall**: Fetches all users. (20 sec cache)
 - **GET /userapi/get**: Finds users with a given query.
   - Query parameters: `country`, `nickname`, `createdAfter`, `page`, `limit`.
 - **POST /userapi/add**: Creates a new user.
@@ -70,6 +70,8 @@ This will generate files into the pb directory
 #### Example HTTP Usage with `curl`
 
 ##### 1. **Call AddUser Endpoint**:
+- Expected response **(STATUS_OK 200)**
+- Failure response **(STATUS_InternalServerError 500)**
 ```sh
 curl 'http://localhost:8080/userapi/add' \
 -H 'Content-Type: application/json' \
@@ -99,9 +101,118 @@ curl 'http://localhost:8080/userapi/add' \
 ```
 </details>
 
+##### 2. **Call UpdateUser Endpoint**:
+- Expected response **(STATUS_OK 200)**
+- Failure response **(STATUS_InternalServerError 500)**
+```sh
+curl 'http://localhost:8080/userapi/update' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+    "ID": "$(id from addUser)",
+    "first_name": "Razzil",
+    "last_name": "Darkbrew",
+    "nickname": "Alchemist",
+    "password": "Blink!moneyMoneyM0n3y",
+    "email": "Razzil.Darkbrew@example.com",
+    "country": "UK"
+}'
+```
+<details><summary>Example UpdateUser Response</summary>
+
+```json
+{
+    "id": "0d0f9944-d902-4db1-b83b-6b25a61f89e2",
+    "first_name": "Razzil",
+    "last_name": "Darkbrew",
+    "nickname": "Alchemist",
+    "password": "Blink!moneyMoneyM0n3y",
+    "email": "Razzil.Darkbrew@example.com",
+    "country": "UK",
+    "created_at": "2024-06-16T17:32:28.213Z",
+    "updated_at": "2024-06-16T17:43:38.985Z"
+}
+```
+</details>
+
+##### 3. **Call GetAllUsers Endpoint (20 sec cache)**:
+- Expected response **(STATUS_OK 200)**
+- Failure response **(STATUS_InternalServerError 500)**
+```sh
+curl 'http://localhost:8080/userapi/getall'
+```
+<details><summary>Example UpdateUser Response</summary>
+
+```json
+[
+    {
+        "id": "0d0f9944-d902-4db1-b83b-6b25a61f89e2",
+        "first_name": "Razzil",
+        "last_name": "Darkbrew",
+        "nickname": "Alchemist",
+        "password": "Blink!moneyMoneyM0n3y",
+        "email": "Razzil.Darkbrew@example.com",
+        "country": "UK",
+        "created_at": "2024-06-16T17:32:28.213Z",
+        "updated_at": "2024-06-16T17:43:38.985Z"
+    },
+    {
+        "id": "a5557cd5-3083-4ecb-a888-71d98ee1e39e",
+        "first_name": "Visage",
+        "last_name": "joe",
+        "nickname": "aXE",
+        "password": "VERYSEcure3343",
+        "email": "joe.jim@example.com",
+        "country": "UK",
+        "created_at": "2024-06-16T17:46:01.377Z",
+        "updated_at": "2024-06-16T17:46:01.377Z"
+    }
+]
+```
+</details>
+
+
+##### 4. **Call GetUsers Endpoint (Filtered)**:
+- Expected response **(STATUS_OK 200)**
+- Failure response **(STATUS_InternalServerError 500)**
+
+```sh
+curl 'http://localhost:8080/userapi/get?country=UK&nickname=al&createdAfter=2024-06-14T18%3A37%3A47.572Z&page=1&limit=50'
+```
+<details><summary>Example GetUsers Response</summary>
+
+```json
+[
+    {
+        "id": "0d0f9944-d902-4db1-b83b-6b25a61f89e2",
+        "first_name": "Razzil",
+        "last_name": "Darkbrew",
+        "nickname": "Alchemist",
+        "password": "Blink!moneyMoneyM0n3y",
+        "email": "Razzil.Darkbrew@example.com",
+        "country": "UK",
+        "created_at": "2024-06-16T17:32:28.213Z",
+        "updated_at": "2024-06-16T17:43:38.985Z"
+    }
+]
+```
+</details>
+
+##### 5. **Call Delete User Endpoint**:
+
+- Expected response **(STATUS_OK 200)**
+- Failure response **(STATUS_InternalServerError 500)**
+
+```sh
+curl --location 'http://localhost:8080/userapi/delete' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+   "ID": "d174809b-5559-4855-a74b-ddf24e993e39"
+}'
+```
+
 ### gRPC Endpoints
 
-- **UserService.GetAllUsers**: Fetches all users.
+- **UserService.GetAllUsers**: Fetches all users. (20 sec cache)
 - **UserService.GetUsers**: Finds users with a given query.
 - **UserService.AddUser**: Creates a new user.
 - **UserService.UpdateUser**: Updates an existing user.
@@ -179,12 +290,12 @@ grpcurl -plaintext -d '{
 ```
 </details>
 
-##### 3. **Call GetAllUsers Method**:
+##### 3. **Call GetAllUsers Method (20 sec cache)**:
 ```sh
 grpcurl -plaintext localhost:9090 user.UserService/GetAllUsers
 ```
 
-<details><summary>Example GetAllUsers Response</summary>
+<details><summary>Example GetAllUsers Response </summary>
 
 ```json
 {
