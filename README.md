@@ -15,7 +15,7 @@ This is a microservice designed to manage access to users, implemented in Go. Th
 
 ### Prerequisites
 
-- Go (version 1.16 or later)
+- Go (version 1.18 or later)
 - MongoDB
 - Docker (for running MongoDB locally)
 
