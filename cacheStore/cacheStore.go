@@ -58,6 +58,7 @@ func (s *store[K, V]) cleanUpJob() {
 			s.lock.Lock()
 			now := time.Now()
 
+			// Check all our cache entries if they have expired
 			for key, item := range s.data {
 				if now.Sub(item.created) >= duration {
 					delete(s.data, key)
@@ -73,28 +74,29 @@ func (s *store[K, V]) GetData(key K, dataFunction func(key K) (V, error)) (V, er
 	var err error
 	var zeroValue V
 
+	// initial read lock
 	s.lock.RLock()
 	item, ok := s.data[key]
+	s.lock.RUnlock()
 	if !ok {
-		s.lock.RUnlock()
+		// cant find, do a full lock and check again
 		s.lock.Lock()
-		defer s.lock.Unlock()
 		item, ok = s.data[key]
 		if !ok {
 			item, err = s.addData(key, dataFunction)
+			s.lock.Unlock()
 			if err != nil {
 				return zeroValue, err
 			}
 		} else {
-			s.lock.RUnlock()
+			s.lock.Unlock()
 		}
-	} else {
-		s.lock.RUnlock()
 	}
 
-	if ok && time.Since(item.created) >= (s.duration*time.Second) {
-		s.lock.Lock()
-		defer s.lock.Unlock()
+	// locl again whilst checking age. and potentially reloading
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if ok && time.Since(item.created) >= s.duration {
 		item, err = s.addData(key, dataFunction)
 		if err != nil {
 			return zeroValue, err

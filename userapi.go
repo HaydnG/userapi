@@ -64,6 +64,7 @@ func start() error {
 
 	mux := http.NewServeMux()
 
+	// register http handlers
 	mux.HandleFunc("/userapi/getall", getAllUsersHandler)
 	mux.HandleFunc("/userapi/get", getUserHandler)
 	mux.HandleFunc("/userapi/add", addUserHandler)
@@ -72,7 +73,7 @@ func start() error {
 	mux.HandleFunc("/userapi/deleteall", deleteAllUsersHandler)
 
 	// Only returns OK when http & grpc is ready for serving connections
-	mux.HandleFunc("/healthz", uhealth.HealthCheckHandler)
+	mux.HandleFunc("/healthz", uhealth.CheckHandler)
 
 	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", HTTPPort), Handler: mux}
 

@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	// GRPCAddress is the address that the gRPC server is listening on
 	GRPCAddress  = ":9090" // Update this if necessary or use an environment variable
 	healthClient healthpb.HealthClient
 )
@@ -27,7 +28,8 @@ func init() {
 	healthClient = healthpb.NewHealthClient(conn)
 }
 
-func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
+// CheckHandler verifies the health of HTTP and gRPC
+func CheckHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

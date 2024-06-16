@@ -2,7 +2,7 @@ package validation
 
 import (
 	"errors"
-	"net/mail"
+	"regexp"
 	"unicode"
 )
 
@@ -84,11 +84,9 @@ func isValidPassword(password string) bool {
 	return hasMinLen && hasUpper && hasLower && hasNumber
 }
 
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+
 // isValidEmail checks if the email meets the standard format
 func isValidEmail(email string) bool {
-	parsedEmail, err := mail.ParseAddress(email)
-	if err != nil {
-		return false
-	}
-	return parsedEmail.Address == email
+	return emailRegex.MatchString(email)
 }
