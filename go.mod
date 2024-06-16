@@ -8,7 +8,7 @@ require (
 	google.golang.org/protobuf v1.34.2
 )
 
-require github.com/bet365/jingo v1.2.1 // indirect
+require github.com/bet365/jingo v1.2.1 // direct
 
 require (
 	github.com/golang/snappy v0.0.1 // indirect

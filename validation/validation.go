@@ -2,10 +2,8 @@ package validation
 
 import (
 	"errors"
-	"regexp"
+	"net/mail"
 	"unicode"
-
-	"userapi/data"
 )
 
 // Validation errors
@@ -36,23 +34,23 @@ func Number(inputs ...string) bool {
 }
 
 // User takes in a user object, and enforces validation rules on the user.
-func User(user *data.User) error {
-	if !isValidName(user.FirstName) {
+func User(firstName, lastName, nickName, password, country, email string) error {
+	if !isValidName(firstName) {
 		return ErrInvalidFirstName
 	}
-	if !isValidName(user.LastName) {
+	if !isValidName(lastName) {
 		return ErrInvalidLastName
 	}
-	if user.Nickname == "" {
+	if nickName == "" {
 		return ErrInvalidNickname
 	}
-	if !isValidPassword(user.Password) {
+	if !isValidPassword(password) {
 		return ErrInvalidPassword
 	}
-	if !isValidEmail(user.Email) {
+	if !isValidEmail(email) {
 		return ErrInvalidEmail
 	}
-	if user.Country == "" {
+	if country == "" {
 		return ErrInvalidCountry
 	}
 	return nil
@@ -88,7 +86,9 @@ func isValidPassword(password string) bool {
 
 // isValidEmail checks if the email meets the standard format
 func isValidEmail(email string) bool {
-	emailRegex := `^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$`
-	re := regexp.MustCompile(emailRegex)
-	return re.MatchString(email)
+	parsedEmail, err := mail.ParseAddress(email)
+	if err != nil {
+		return false
+	}
+	return parsedEmail.Address == email
 }

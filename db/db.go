@@ -9,7 +9,6 @@ import (
 
 	"userapi/cacheStore"
 	"userapi/data"
-	"userapi/pb"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -32,12 +31,12 @@ func Init() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to mongoDB: %v, ensure the docker image has been ran", err)
 	}
-	log.Printf("successfully connected to mongoDB")
 
 	err = client.Ping(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to ping to mongoDB: %v, ensure the docker image has been ran", err)
 	}
+	log.Printf("successfully connected to mongoDB")
 
 	userCollection = client.Database("faceit").Collection("users")
 
@@ -174,7 +173,7 @@ func InsertUser(user *data.User) error {
 }
 
 // UpdateUser updates the given user's details in the database
-func UpdateUser(user *data.User) (*pb.User, error) {
+func UpdateUser(user *data.User) (*data.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -198,7 +197,7 @@ func UpdateUser(user *data.User) (*pb.User, error) {
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 
 	// Perform the update operation
-	var updatedUser pb.User
+	var updatedUser data.User
 	err := userCollection.FindOneAndUpdate(ctx, bson.M{"_id": user.ID}, update, opts).Decode(&updatedUser)
 	if err != nil {
 		return nil, fmt.Errorf("error when updating user - err: %v", err)

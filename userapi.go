@@ -152,7 +152,7 @@ var (
 )
 
 // getAllUsersHandler fetches all users from the DB
-// this endpoint is designed to be performant. No queryies used. And caching is utilised
+// this endpoint is designed to be performant. No queries used. And caching is utilised
 func getAllUsersHandler(w http.ResponseWriter, r *http.Request) {
 	var (
 		err error
@@ -292,7 +292,7 @@ func addUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = validation.User(&user)
+	err = validation.User(user.FirstName, user.LastName, user.Nickname, user.Password, user.Country, user.Email)
 	if err != nil {
 		err = fmt.Errorf("user failed validation - err: %v, user:%+v", err, user)
 		return
@@ -359,7 +359,7 @@ func updateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = validation.User(&user)
+	err = validation.User(user.FirstName, user.LastName, user.Nickname, user.Password, user.Country, user.Email)
 	if err != nil {
 		err = fmt.Errorf("user failed validation - err: %v, user:%+v", err, user)
 		return
@@ -428,7 +428,7 @@ func deleteUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if user.ID == "" {
-		err = fmt.Errorf("no userid provided to delete, user: %v", user)
+		err = fmt.Errorf("no userid provided to delete, user: %v", &user)
 		return
 	}
 
@@ -489,6 +489,8 @@ type ServiceServer struct {
 	pb.UnimplementedUserServiceServer
 }
 
+// GetAllUsers fetches all users from the DB
+// this endpoint is designed to be performant. No queries used. And caching is utilised
 func (s *ServiceServer) GetAllUsers(ctx context.Context, in *emptypb.Empty) (*pb.GetUsersResponse, error) {
 	users, err := db.GetUsers()
 	if err != nil {
@@ -504,6 +506,7 @@ func (s *ServiceServer) GetAllUsers(ctx context.Context, in *emptypb.Empty) (*pb
 	return &pb.GetUsersResponse{Users: protoUsers}, nil
 }
 
+// GetUsers finds users with a given query from the database
 func (s *ServiceServer) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*pb.GetUsersResponse, error) {
 
 	if req.Page < 1 || req.Page > 1000 {
@@ -527,17 +530,108 @@ func (s *ServiceServer) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (
 	return &pb.GetUsersResponse{Users: protoUsers}, nil
 }
 
+// AddUser creates a new user in the database, ensuring no username clashes
 func (s *ServiceServer) AddUser(ctx context.Context, req *pb.AddUserRequest) (*pb.User, error) {
-	log.Printf("%+v", req)
+	err := validation.User(req.FirstName, req.LastName, req.Nickname, req.Password, req.Country, req.Email)
+	if err != nil {
+		err = fmt.Errorf("user failed validation - err: %v, user:%+v", err, req)
+		return nil, err
+	}
 
-	return nil, nil
+	existingUser, err := db.GetUser(req.Nickname)
+	if err != nil {
+		err = fmt.Errorf("errored when attempting to lookup existing users - err: %v, user:%+v", err, req)
+		return nil, err
+	}
+
+	if existingUser != nil && existingUser.Nickname != "" && existingUser.Nickname == req.Nickname {
+		err = fmt.Errorf("a user with this username already exists - user:%+v", req)
+		return nil, err
+	}
+
+	user := data.User{
+		ID:        uuid.New().String(),
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		Nickname:  req.Nickname,
+		Password:  req.Password,
+		Country:   req.Country,
+		Email:     req.Email,
+		CreatedAt: time.Now().UTC(),
+	}
+	user.UpdatedAt = user.CreatedAt
+
+	err = db.InsertUser(&user)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertToProtoUser(&user), nil
 }
 
+// UpdateUser updates the user from the database with a given id, ensuring no username clashes
 func (s *ServiceServer) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb.User, error) {
-	return nil, nil
+	err := validation.User(req.FirstName, req.LastName, req.Nickname, req.Password, req.Country, req.Email)
+	if err != nil {
+		err = fmt.Errorf("user failed validation - err: %v, user:%+v", err, req)
+		return nil, err
+	}
+
+	// Look up for users with this username, We want to prevent usernames being updated to usernames that already exist
+	existingUser, err := db.GetUser(req.Nickname)
+	if err != nil {
+		err = fmt.Errorf("errored when attempting to lookup existing users - err: %v, user:%+v", err, req)
+		return nil, err
+	}
+
+	// If the username matches an existing users, check we havn't matched with ourself
+	if existingUser != nil && existingUser.ID != req.ID {
+		err = fmt.Errorf("no users found with the given users, cannot update user, inputted user: %v", req)
+		return nil, err
+	}
+
+	// ensure we have a correctly formatted uuid string
+	err = uuid.Validate(req.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	user := data.User{
+		ID:        req.ID,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		Nickname:  req.Nickname,
+		Password:  req.Password,
+		Country:   req.Country,
+		Email:     req.Email,
+	}
+
+	updatedUser, err := db.UpdateUser(&user)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertToProtoUser(updatedUser), nil
 }
 
+// DeleteUser deletes the user from the database with a given id
 func (s *ServiceServer) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.Empty, error) {
+	if req.ID == "" {
+		err := fmt.Errorf("no userid provided to delete, user: %v", &req)
+		return nil, err
+	}
+
+	// ensure we have a correctly formatted uuid string
+	err := uuid.Validate(req.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = db.DeleteUser(req.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 
