@@ -1,0 +1,246 @@
+{
+	"info": {
+		"_postman_id": "bfeb4aa8-13c4-40aa-af93-a4292e1ecddc",
+		"name": "userapi",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "36347154"
+	},
+	"item": [
+		{
+			"name": "HTTP Add User",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"first_name\": \"Testing1\",\r\n  \"last_name\": \"joe\",\r\n  \"nickname\": \"Testing1joe\",\r\n  \"password\": \"VERYSECURE3343\",\r\n  \"email\": \"joe.Testing1joe@example.com\",\r\n  \"country\": \"UK\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/userapi/add",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"userapi",
+						"add"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "HTTP Delete User",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"id\": \"fdfb2be0-2a08-4f03-b8aa-2f836b4d4d1a\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/userapi/add",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"userapi",
+						"add"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "HTTP Update User",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"first_name\": \"Testing1\",\r\n  \"last_name\": \"joe\",\r\n  \"nickname\": \"Testing1joe\",\r\n  \"password\": \"VERYSECURE3343\",\r\n  \"email\": \"joe.Testing1joe@example.com\",\r\n  \"country\": \"UK\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/userapi/add",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"userapi",
+						"add"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "HTTP Get Users with filters",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": []
+				},
+				"url": {
+					"raw": "http://localhost:8080/userapi/get?country=UK&page=1&limit=10&createdAfter=2024-06-10T18:37:47.572Z",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"userapi",
+						"get"
+					],
+					"query": [
+						{
+							"key": "country",
+							"value": "UK"
+						},
+						{
+							"key": "page",
+							"value": "1"
+						},
+						{
+							"key": "limit",
+							"value": "10"
+						},
+						{
+							"key": "createdAfter",
+							"value": "2024-06-10T18:37:47.572Z"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "HTTP Get Users with filters - 2",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/userapi/get?country=U",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"userapi",
+						"get"
+					],
+					"query": [
+						{
+							"key": "country",
+							"value": "U"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "HTTP Get All Users",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/userapi/get?country=U",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"userapi",
+						"get"
+					],
+					"query": [
+						{
+							"key": "country",
+							"value": "U"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "HTTP Delete All",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/userapi/get?country=U",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"userapi",
+						"get"
+					],
+					"query": [
+						{
+							"key": "country",
+							"value": "U"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "HTTP Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/userapi/get?country=U",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"userapi",
+						"get"
+					],
+					"query": [
+						{
+							"key": "country",
+							"value": "U"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
