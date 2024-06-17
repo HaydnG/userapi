@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -18,15 +19,46 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-var grpcTestServer = &UserService{}
+var grpcTestService = &UserService{}
+
+const bufSize = 1024 * 1024
+
+var (
+	lis            *bufconn.Listener
+	grpcTestServer *grpc.Server
+	client         pb.UserServiceClient
+)
 
 func init() {
 	// Prevent all the error logs from showing up, even when expected
 	// Comment this out if need to debug any issues
 	// log.Default().SetOutput(io.Discard)
+
+	lis = bufconn.Listen(bufSize)
+	grpcTestServer = grpc.NewServer()
+	pb.RegisterUserServiceServer(grpcTestServer, &UserService{})
+	go func() {
+		if err := grpcTestServer.Serve(lis); err != nil {
+			panic(err)
+		}
+	}()
+
+	ctx := context.Background()
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(bufDialer), grpc.WithInsecure())
+	if err != nil {
+		panic(err)
+	}
+	client = pb.NewUserServiceClient(conn)
+}
+
+func bufDialer(context.Context, string) (net.Conn, error) {
+	return lis.Dial()
 }
 
 //################################################################
@@ -940,7 +972,7 @@ func TestGetAllUsersGRPCHandler(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			response, err := grpcTestServer.GetAllUsers(ctx, nil)
+			response, err := grpcTestService.GetAllUsers(ctx, nil)
 			// If we got an error, but we didn't expect it. Then we error.
 			// If we didn't get an error, but we expect one. Then we error.
 			if (err != nil && !tt.expectedError) || (err == nil && tt.expectedError) {
@@ -1081,7 +1113,7 @@ func TestGetUsersGRPCHandler(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			response, err := grpcTestServer.GetUsers(ctx, tt.req)
+			response, err := grpcTestService.GetUsers(ctx, tt.req)
 			// If we got an error, but we didn't expect it. Then we error.
 			// If we didn't get an error, but we expect one. Then we error.
 			if (err != nil && !tt.expectedError) || (err == nil && tt.expectedError) {
@@ -1276,7 +1308,7 @@ func TestAddUserGRPCHandler(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			response, err := grpcTestServer.AddUser(ctx, tt.req)
+			response, err := grpcTestService.AddUser(ctx, tt.req)
 			// If we got an error, but we didn't expect it. Then we error.
 			// If we didn't get an error, but we expect one. Then we error.
 			if (err != nil && !tt.expectedError) || (err == nil && tt.expectedError) {
@@ -1484,7 +1516,7 @@ func TestUpdateUserGRPCHandler(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			response, err := grpcTestServer.UpdateUser(ctx, tt.req)
+			response, err := grpcTestService.UpdateUser(ctx, tt.req)
 			// If we got an error, but we didn't expect it. Then we error.
 			// If we didn't get an error, but we expect one. Then we error.
 			if (err != nil && !tt.expectedError) || (err == nil && tt.expectedError) {
@@ -1574,7 +1606,7 @@ func TestDeleteUserGRPCHandler(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			_, err := grpcTestServer.DeleteUser(ctx, tt.req)
+			_, err := grpcTestService.DeleteUser(ctx, tt.req)
 			// If we got an error, but we didn't expect it. Then we error.
 			// If we didn't get an error, but we expect one. Then we error.
 			if (err != nil && !tt.expectedError) || (err == nil && tt.expectedError) {
@@ -1584,6 +1616,277 @@ func TestDeleteUserGRPCHandler(t *testing.T) {
 			// Exit early, because its an error scenario.
 			if tt.expectedError {
 				return
+			}
+		})
+	}
+}
+
+func TestWatchUsersHandler(t *testing.T) {
+	// Reset our cache
+	db.UserStore.Clear()
+
+	// Set our timenow function, to ensure our test is static
+	timeNow = func() time.Time {
+		return time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)
+	}
+
+	newUUID = func() string {
+		return "8711e364-c83d-46fc-a3db-d6b2aee00d0f"
+	}
+
+	// Define test cases
+	tests := []struct {
+		name            string
+		setupFunc       func() error
+		expectedUpdates []pb.UserUpdate
+		expectedError   bool
+	}{
+		{
+			name: "Add User Update via gRPC",
+			setupFunc: func() error {
+				req := &pb.AddUserRequest{
+					FirstName: "Razzil",
+					LastName:  "Darkbrew",
+					Nickname:  "Alchemist",
+					Password:  "moneyMoneyM0n3y",
+					Email:     "Razzil.Darkbrew@example.com",
+					Country:   "UK",
+				}
+				_, err := client.AddUser(context.Background(), req)
+				return err
+			},
+			expectedUpdates: []pb.UserUpdate{
+				{
+					UpdateType: updateCREATED,
+					User: &pb.User{
+						ID:        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+						FirstName: "Razzil",
+						LastName:  "Darkbrew",
+						Nickname:  "Alchemist",
+						Email:     "Razzil.Darkbrew@example.com",
+						Country:   "UK",
+						CreatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
+						UpdatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "Add User Update via HTTP",
+			setupFunc: func() error {
+				body := []byte(`{
+					"first_name": "Razzil",
+					"last_name": "Darkbrew",
+					"nickname": "Alchemist",
+					"password": "moneyMoneyM0n3y",
+					"email": "Razzil.Darkbrew@example.com",
+					"country": "UK"
+				}`)
+				req, err := http.NewRequest(http.MethodPost, "/userapi/add", bytes.NewReader(body))
+				if err != nil {
+					return err
+				}
+				rr := httptest.NewRecorder()
+				addUserHandler(rr, req)
+				if rr.Code != http.StatusOK {
+					return fmt.Errorf("unexpected status code: %v", rr.Code)
+				}
+				return nil
+			},
+			expectedUpdates: []pb.UserUpdate{
+				{
+					UpdateType: updateCREATED,
+					User: &pb.User{
+						ID:        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+						FirstName: "Razzil",
+						LastName:  "Darkbrew",
+						Nickname:  "Alchemist",
+						Email:     "Razzil.Darkbrew@example.com",
+						Country:   "UK",
+						CreatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
+						UpdatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "Update User via gRPC",
+			setupFunc: func() error {
+				req := &pb.UpdateUserRequest{
+					ID:        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+					FirstName: "Razzil",
+					LastName:  "Darkbrew",
+					Nickname:  "Meepo",
+					Password:  "newPassword123",
+					Email:     "Razzil.Darkbrew@example.com",
+					Country:   "UK",
+				}
+				_, err := client.UpdateUser(context.Background(), req)
+				return err
+			},
+			expectedUpdates: []pb.UserUpdate{
+				{
+					UpdateType: updateUPDATED,
+					User: &pb.User{
+						ID:        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+						FirstName: "Razzil",
+						LastName:  "Darkbrew",
+						Nickname:  "Meepo",
+						Email:     "Razzil.Darkbrew@example.com",
+						Country:   "UK",
+						CreatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
+						UpdatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "Update User via HTTP",
+			setupFunc: func() error {
+				body := []byte(`{
+					"id": "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+					"first_name": "Razzil",
+					"last_name": "Darkbrew",
+					"nickname": "Meepo",
+					"password": "newPassword123",
+					"email": "Razzil.Darkbrew@example.com",
+					"country": "UK"
+				}`)
+				req, err := http.NewRequest(http.MethodPost, "/userapi/update", bytes.NewReader(body))
+				if err != nil {
+					return err
+				}
+				rr := httptest.NewRecorder()
+				updateUserHandler(rr, req)
+				if rr.Code != http.StatusOK {
+					return fmt.Errorf("unexpected status code: %v", rr.Code)
+				}
+				return nil
+			},
+			expectedUpdates: []pb.UserUpdate{
+				{
+					UpdateType: updateUPDATED,
+					User: &pb.User{
+						ID:        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+						FirstName: "Razzil",
+						LastName:  "Darkbrew",
+						Nickname:  "Meepo",
+						Email:     "Razzil.Darkbrew@example.com",
+						Country:   "UK",
+						CreatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
+						UpdatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "Delete User via gRPC",
+			setupFunc: func() error {
+				req := &pb.DeleteUserRequest{
+					ID: "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+				}
+				_, err := client.DeleteUser(context.Background(), req)
+				return err
+			},
+			expectedUpdates: []pb.UserUpdate{
+				{
+					UpdateType: updateDELETED,
+					User: &pb.User{
+						ID: "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "Delete User via HTTP",
+			setupFunc: func() error {
+				body := []byte(`{
+					"id": "8711e364-c83d-46fc-a3db-d6b2aee00d0f"
+				}`)
+				req, err := http.NewRequest(http.MethodPost, "/userapi/delete", bytes.NewReader(body))
+				if err != nil {
+					return err
+				}
+				rr := httptest.NewRecorder()
+				deleteUserHandler(rr, req)
+				if rr.Code != http.StatusOK {
+					return fmt.Errorf("unexpected status code: %v", rr.Code)
+				}
+				return nil
+			},
+			expectedUpdates: []pb.UserUpdate{
+				{
+					UpdateType: updateDELETED,
+					User: &pb.User{
+						ID: "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "Delete All Users via HTTP",
+			setupFunc: func() error {
+				req, err := http.NewRequest(http.MethodPost, "/userapi/deleteall", nil)
+				if err != nil {
+					return err
+				}
+				rr := httptest.NewRecorder()
+				deleteAllUsersHandler(rr, req)
+				if rr.Code != http.StatusOK {
+					return fmt.Errorf("unexpected status code: %v", rr.Code)
+				}
+				return nil
+			},
+			expectedUpdates: []pb.UserUpdate{
+				{
+					UpdateType: updateALLDELETED,
+				},
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			stream, err := client.WatchUsers(ctx, &emptypb.Empty{})
+			if err != nil {
+				t.Fatalf("WatchUsers failed: %v", err)
+			}
+
+			err = tt.setupFunc()
+			if err != nil {
+				t.Fatalf("Setup function failed: %v", err)
+			}
+
+			var receivedUpdates []pb.UserUpdate
+			for i := 0; i < len(tt.expectedUpdates); i++ {
+				update, err := stream.Recv()
+				if err != nil {
+					if tt.expectedError && err.Error() == tt.mockError.Error() {
+						break
+					}
+					t.Fatalf("Stream receive failed: %v", err)
+				}
+				receivedUpdates = append(receivedUpdates, *update)
+			}
+
+			if !tt.expectedError && len(receivedUpdates) != len(tt.expectedUpdates) {
+				t.Fatalf("Expected %d updates, got %d", len(tt.expectedUpdates), len(receivedUpdates))
+			}
+
+			for i, update := range receivedUpdates {
+				if !reflect.DeepEqual(update, tt.expectedUpdates[i]) {
+					t.Errorf("Update %d did not match expected: got %v, want %v", i, update, tt.expectedUpdates[i])
+				}
 			}
 		})
 	}
