@@ -619,6 +619,9 @@ func (s *ServiceServer) UpdateUser(ctx context.Context, req *pb.UpdateUserReques
 		Email:     req.Email,
 	}
 
+	// Set the UpdatedAt field
+	user.UpdatedAt = timeNow()
+
 	updatedUser, err := db.UpdateUser(&user)
 	if err != nil {
 		return nil, err
