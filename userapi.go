@@ -37,6 +37,12 @@ var (
 	logVerbosity = 0
 	HTTPPort     = 0
 	GRPCPort     = 0
+
+	// set our timeNow function, to allow us to stub it later
+	timeNow = time.Now
+
+	// set our newUUID function, to allow us to stub it later
+	newUUID = uuid.NewString
 )
 
 func main() {
@@ -310,8 +316,8 @@ func addUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user.ID = uuid.New().String()
-	user.CreatedAt = time.Now().UTC()
+	user.ID = newUUID()
+	user.CreatedAt = timeNow().UTC()
 	user.UpdatedAt = user.CreatedAt
 
 	err = db.InsertUser(&user)
@@ -366,6 +372,12 @@ func updateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ensure we have a correctly formatted uuid string
+	err = uuid.Validate(user.ID)
+	if err != nil {
+		return
+	}
+
 	// Look up for users with this username, We want to prevent usernames being updated to usernames that already exist
 	existingUser, err := db.GetUser(user.Nickname)
 	if err != nil {
@@ -379,13 +391,13 @@ func updateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ensure we have a correctly formatted uuid string
-	err = uuid.Validate(user.ID)
+	// Set the UpdatedAt field
+	user.UpdatedAt = timeNow()
+
+	updatedUser, err := db.UpdateUser(&user)
 	if err != nil {
 		return
 	}
-
-	updatedUser, err := db.UpdateUser(&user)
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -551,14 +563,14 @@ func (s *ServiceServer) AddUser(ctx context.Context, req *pb.AddUserRequest) (*p
 	}
 
 	user := data.User{
-		ID:        uuid.New().String(),
+		ID:        newUUID(),
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
 		Nickname:  req.Nickname,
 		Password:  req.Password,
 		Country:   req.Country,
 		Email:     req.Email,
-		CreatedAt: time.Now().UTC(),
+		CreatedAt: timeNow().UTC(),
 	}
 	user.UpdatedAt = user.CreatedAt
 

@@ -121,3 +121,10 @@ func (s *store[K, V]) addData(key K, dataFunction func(key K) (V, error)) (cache
 	s.data[key] = item
 	return item, nil
 }
+
+// Clear removes all entries from the cache.
+func (s *store[K, V]) Clear() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.data = make(map[K]cacheItem[K, V])
+}

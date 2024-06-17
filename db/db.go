@@ -90,7 +90,7 @@ func GetUserByID(id string) (*data.User, error) {
 	return &user, nil
 }
 
-var userStore = cacheStore.NewStore[int, []data.User]("userStore", time.Second*20)
+var UserStore = cacheStore.NewStore[int, []data.User]("userStore", time.Second*20)
 
 // GetUsers queries the database to get ALL the users
 // Utilised a cache to reduce database hits
@@ -99,7 +99,7 @@ var userStore = cacheStore.NewStore[int, []data.User]("userStore", time.Second*2
 func GetUsers() ([]data.User, error) {
 
 	// just key on 0, we're not using this cache for anything complex
-	users, err := userStore.GetData(0, func(key int) ([]data.User, error) {
+	users, err := UserStore.GetData(0, func(key int) ([]data.User, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -193,9 +193,6 @@ func InsertUser(user *data.User) error {
 func UpdateUser(user *data.User) (*data.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	// Set the UpdatedAt field
-	user.UpdatedAt = time.Now()
 
 	// Create the update document
 	update := bson.M{
