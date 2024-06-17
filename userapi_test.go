@@ -21,7 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-var grpcTestServer = &ServiceServer{}
+var grpcTestServer = &UserService{}
 
 func init() {
 	// Prevent all the error logs from showing up, even when expected

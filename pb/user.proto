@@ -7,11 +7,23 @@ import "google/protobuf/timestamp.proto";
 option go_package = "/pb;pb";
 
 service UserService {
+    rpc WatchUsers (WatchRequest) returns (stream UserUpdate) {}
+
     rpc GetAllUsers(google.protobuf.Empty) returns (GetUsersResponse);
     rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
     rpc AddUser(AddUserRequest) returns (User);
     rpc UpdateUser(UpdateUserRequest) returns (User);
     rpc DeleteUser(DeleteUserRequest) returns (Empty);
+}
+
+message WatchRequest {
+    string filter = 1;
+}
+
+message UserUpdate {
+    string user_id = 1;
+    string update_type = 2; // "(C)REATE", "(U)PDATE", "(D)ELETE"
+    User user = 3;
 }
 
 message User {

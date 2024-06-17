@@ -210,6 +210,15 @@ curl --location 'http://localhost:8080/userapi/delete' \
 }'
 ```
 
+##### 5. **Call Delete All Users Endpoint**:
+
+- Expected response **(STATUS_OK 200)**
+- Failure response **(STATUS_InternalServerError 500)**
+
+```sh
+curl --location 'http://localhost:8080/userapi/deleteall' -H 'Content-Type: application/json'
+```
+
 ### gRPC Endpoints
 
 - **UserService.GetAllUsers**: Fetches all users. (20 sec cache)

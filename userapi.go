@@ -38,6 +38,8 @@ var (
 	HTTPPort     = 0
 	GRPCPort     = 0
 
+	userService *UserService
+
 	// set our timeNow function, to allow us to stub it later
 	timeNow = time.Now
 
@@ -85,8 +87,8 @@ func start() error {
 
 	// Set up the gRPC server
 	grpcServer := grpc.NewServer()
-	grpcServiceServer := &ServiceServer{}
-	pb.RegisterUserServiceServer(grpcServer, grpcServiceServer)
+	userService = NewUserService()
+	pb.RegisterUserServiceServer(grpcServer, userService)
 
 	// Register health service
 	healthSrv := health.NewServer()
@@ -325,6 +327,11 @@ func addUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Spawn a go routine, so we dont impact the request
+	go func() {
+		userService.NotifyUpdate(user.ID, updateCREATED, convertToProtoUser(&user))
+	}()
+
 	w.Header().Set("Content-Type", "application/json")
 
 	buf := jingo.NewBufferFromPool()
@@ -399,6 +406,11 @@ func updateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Spawn a go routine, so we dont impact the request
+	go func() {
+		userService.NotifyUpdate(user.ID, updateUPDATED, convertToProtoUser(&user))
+	}()
+
 	w.Header().Set("Content-Type", "application/json")
 
 	buf := jingo.NewBufferFromPool()
@@ -456,6 +468,11 @@ func deleteUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Spawn a go routine, so we dont impact the request
+	go func() {
+		userService.NotifyUpdate(user.ID, updateDELETED, &user)
+	}()
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -490,6 +507,11 @@ func deleteAllUsersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Spawn a go routine, so we dont impact the request
+	go func() {
+		userService.NotifyUpdate("", updateALLDELETED, nil)
+	}()
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -497,14 +519,26 @@ func deleteAllUsersHandler(w http.ResponseWriter, r *http.Request) {
 // gRPC Handlers
 //################################################################
 
-// ServiceServer contains our handlers for our gRPC service
-type ServiceServer struct {
+// UserService contains our handlers for our gRPC service
+type UserService struct {
 	pb.UnimplementedUserServiceServer
+
+	userUpdates chan *pb.UserUpdate
+	mu          sync.RWMutex
+	watchers    map[chan *pb.UserUpdate]struct{}
+}
+
+// NewUserService creates a new gRPC user server instance
+func NewUserService() *UserService {
+	return &UserService{
+		userUpdates: make(chan *pb.UserUpdate),
+		watchers:    make(map[chan *pb.UserUpdate]struct{}),
+	}
 }
 
 // GetAllUsers fetches all users from the DB
 // this endpoint is designed to be performant. No queries used. And caching is utilised
-func (s *ServiceServer) GetAllUsers(ctx context.Context, in *emptypb.Empty) (*pb.GetUsersResponse, error) {
+func (s *UserService) GetAllUsers(ctx context.Context, in *emptypb.Empty) (*pb.GetUsersResponse, error) {
 	users, err := db.GetUsers()
 	if err != nil {
 		return nil, err
@@ -520,7 +554,7 @@ func (s *ServiceServer) GetAllUsers(ctx context.Context, in *emptypb.Empty) (*pb
 }
 
 // GetUsers finds users with a given query from the database
-func (s *ServiceServer) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*pb.GetUsersResponse, error) {
+func (s *UserService) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*pb.GetUsersResponse, error) {
 
 	if req.Page < 1 || req.Page > 1000 {
 		req.Page = 1
@@ -544,7 +578,7 @@ func (s *ServiceServer) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (
 }
 
 // AddUser creates a new user in the database, ensuring no username clashes
-func (s *ServiceServer) AddUser(ctx context.Context, req *pb.AddUserRequest) (*pb.User, error) {
+func (s *UserService) AddUser(ctx context.Context, req *pb.AddUserRequest) (*pb.User, error) {
 	err := validation.User(req.FirstName, req.LastName, req.Nickname, req.Password, req.Country, req.Email)
 	if err != nil {
 		err = fmt.Errorf("user failed validation - err: %v, user:%+v", err, req)
@@ -579,11 +613,16 @@ func (s *ServiceServer) AddUser(ctx context.Context, req *pb.AddUserRequest) (*p
 		return nil, err
 	}
 
+	// Spawn a go routine, so we dont impact the request
+	go func() {
+		userService.NotifyUpdate(user.ID, updateCREATED, convertToProtoUser(&user))
+	}()
+
 	return convertToProtoUser(&user), nil
 }
 
 // UpdateUser updates the user from the database with a given id, ensuring no username clashes
-func (s *ServiceServer) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb.User, error) {
+func (s *UserService) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb.User, error) {
 	err := validation.User(req.FirstName, req.LastName, req.Nickname, req.Password, req.Country, req.Email)
 	if err != nil {
 		err = fmt.Errorf("user failed validation - err: %v, user:%+v", err, req)
@@ -627,11 +666,16 @@ func (s *ServiceServer) UpdateUser(ctx context.Context, req *pb.UpdateUserReques
 		return nil, err
 	}
 
+	// Spawn a go routine, so we dont impact the request
+	go func() {
+		userService.NotifyUpdate(user.ID, updateUPDATED, convertToProtoUser(&user))
+	}()
+
 	return convertToProtoUser(updatedUser), nil
 }
 
 // DeleteUser deletes the user from the database with a given id
-func (s *ServiceServer) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.Empty, error) {
+func (s *UserService) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.Empty, error) {
 	if req.ID == "" {
 		err := fmt.Errorf("no userid provided to delete, user: %v", &req)
 		return nil, err
@@ -648,7 +692,60 @@ func (s *ServiceServer) DeleteUser(ctx context.Context, req *pb.DeleteUserReques
 		return nil, err
 	}
 
+	// Spawn a go routine, so we dont impact the request
+	go func() {
+		userService.NotifyUpdate(req.ID, updateDELETED, &pb.User{ID: req.ID})
+	}()
+
 	return nil, nil
+}
+
+// WatchUsers is the gRPC user update watcher, which notifies any watchers of updates to users
+func (s *UserService) WatchUsers(req *pb.WatchRequest, stream pb.UserService_WatchUsersServer) error {
+	// Create a personal chan for the connected watcher
+	updateChan := make(chan *pb.UserUpdate)
+	s.mu.Lock()
+
+	// Add to our directory of watchers, so we can notify them all
+	s.watchers[updateChan] = struct{}{}
+	s.mu.Unlock()
+
+	defer func() {
+		// Clean up
+		s.mu.Lock()
+		delete(s.watchers, updateChan)
+		s.mu.Unlock()
+		close(updateChan)
+	}()
+
+	// Listen and distribute updates
+	for update := range updateChan {
+		if err := stream.Send(update); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+const (
+	updateCREATED    = "CREATED"
+	updateDELETED    = "DELETED"
+	updateUPDATED    = "UPDATED"
+	updateALLDELETED = "ALL_DELETED"
+)
+
+// NotifyUpdate will spawn and notify all our watchers of an update
+func (s *UserService) NotifyUpdate(userID, updateType string, user *pb.User) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for ch := range s.watchers {
+		select {
+		case ch <- &pb.UserUpdate{UserId: userID, UpdateType: updateType, User: user}:
+		default:
+			log.Printf("Dropping update for user %s: channel is full", userID)
+		}
+	}
 }
 
 // Convert a data.User to a protobuf User.

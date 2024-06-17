@@ -20,6 +20,7 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
+	UserService_WatchUsers_FullMethodName  = "/user.UserService/WatchUsers"
 	UserService_GetAllUsers_FullMethodName = "/user.UserService/GetAllUsers"
 	UserService_GetUsers_FullMethodName    = "/user.UserService/GetUsers"
 	UserService_AddUser_FullMethodName     = "/user.UserService/AddUser"
@@ -31,6 +32,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type UserServiceClient interface {
+	WatchUsers(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (UserService_WatchUsersClient, error)
 	GetAllUsers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetUsersResponse, error)
 	GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (*GetUsersResponse, error)
 	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*User, error)
@@ -44,6 +46,39 @@ type userServiceClient struct {
 
 func NewUserServiceClient(cc grpc.ClientConnInterface) UserServiceClient {
 	return &userServiceClient{cc}
+}
+
+func (c *userServiceClient) WatchUsers(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (UserService_WatchUsersClient, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &UserService_ServiceDesc.Streams[0], UserService_WatchUsers_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &userServiceWatchUsersClient{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type UserService_WatchUsersClient interface {
+	Recv() (*UserUpdate, error)
+	grpc.ClientStream
+}
+
+type userServiceWatchUsersClient struct {
+	grpc.ClientStream
+}
+
+func (x *userServiceWatchUsersClient) Recv() (*UserUpdate, error) {
+	m := new(UserUpdate)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (c *userServiceClient) GetAllUsers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetUsersResponse, error) {
@@ -100,6 +135,7 @@ func (c *userServiceClient) DeleteUser(ctx context.Context, in *DeleteUserReques
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility
 type UserServiceServer interface {
+	WatchUsers(*WatchRequest, UserService_WatchUsersServer) error
 	GetAllUsers(context.Context, *emptypb.Empty) (*GetUsersResponse, error)
 	GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error)
 	AddUser(context.Context, *AddUserRequest) (*User, error)
@@ -112,6 +148,9 @@ type UserServiceServer interface {
 type UnimplementedUserServiceServer struct {
 }
 
+func (UnimplementedUserServiceServer) WatchUsers(*WatchRequest, UserService_WatchUsersServer) error {
+	return status.Errorf(codes.Unimplemented, "method WatchUsers not implemented")
+}
 func (UnimplementedUserServiceServer) GetAllUsers(context.Context, *emptypb.Empty) (*GetUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAllUsers not implemented")
 }
@@ -138,6 +177,27 @@ type UnsafeUserServiceServer interface {
 
 func RegisterUserServiceServer(s grpc.ServiceRegistrar, srv UserServiceServer) {
 	s.RegisterService(&UserService_ServiceDesc, srv)
+}
+
+func _UserService_WatchUsers_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(UserServiceServer).WatchUsers(m, &userServiceWatchUsersServer{ServerStream: stream})
+}
+
+type UserService_WatchUsersServer interface {
+	Send(*UserUpdate) error
+	grpc.ServerStream
+}
+
+type userServiceWatchUsersServer struct {
+	grpc.ServerStream
+}
+
+func (x *userServiceWatchUsersServer) Send(m *UserUpdate) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _UserService_GetAllUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -258,6 +318,12 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _UserService_DeleteUser_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchUsers",
+			Handler:       _UserService_WatchUsers_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "pb/user.proto",
 }
