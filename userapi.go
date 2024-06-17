@@ -66,7 +66,7 @@ func start() error {
 
 	// register http handlers
 	mux.HandleFunc("/userapi/getall", getAllUsersHandler)
-	mux.HandleFunc("/userapi/get", getUserHandler)
+	mux.HandleFunc("/userapi/get", getUsersHandler)
 	mux.HandleFunc("/userapi/add", addUserHandler)
 	mux.HandleFunc("/userapi/update", updateUserHandler)
 	mux.HandleFunc("/userapi/delete", deleteUserHandler)
@@ -194,12 +194,12 @@ func getAllUsersHandler(w http.ResponseWriter, r *http.Request) {
 	buf.WriteTo(w)
 }
 
-// getUserHandler finds users with a given query from the database
+// getUsersHandler finds users with a given query from the database
 // GET method is required
 // parameters are to be supplied has url params.
 // ?country=UK&nickname=meepo&createdAfter=2024-06-14T18:37:47.572Z&page=1&limit=50
 // no params are required
-func getUserHandler(w http.ResponseWriter, r *http.Request) {
+func getUsersHandler(w http.ResponseWriter, r *http.Request) {
 	var (
 		err error
 	)

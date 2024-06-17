@@ -83,7 +83,7 @@ func TestUser(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			err := User(test.firstName, test.lastName, test.nickName, test.password, test.country, test.email)
 			if err != test.expected {
-				t.Errorf("User(%q, %q, %q, %q, %q, %q) = %v; want %v",
+				t.Errorf("TestCase User %q, %q, %q, %q, %q, %q Got Validation Response = %v; want %v",
 					test.firstName, test.lastName, test.nickName, test.password, test.country, test.email, err, test.expected)
 			}
 		})

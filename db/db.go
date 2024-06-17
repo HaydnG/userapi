@@ -15,8 +15,23 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// MongoCollectionInt is an interface that abstracts MongoDB operations.
+type MongoCollectionInt interface {
+	InsertOne(ctx context.Context, document interface{}) (*mongo.InsertOneResult, error)
+	Find(ctx context.Context, filter interface{}, opts ...*options.FindOptions) (*mongo.Cursor, error)
+	FindOne(ctx context.Context, filter interface{}, opts ...*options.FindOneOptions) *mongo.SingleResult
+	FindOneAndUpdate(ctx context.Context, filter interface{}, update interface{}, opts ...*options.FindOneAndUpdateOptions) *mongo.SingleResult
+	DeleteOne(ctx context.Context, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error)
+	DeleteMany(ctx context.Context, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error)
+}
+
 var client *mongo.Client
-var userCollection *mongo.Collection
+var userCollection MongoCollectionInt
+
+// SetCollection allows setting a different MongoCollection, useful for testing.
+func SetCollection(collection MongoCollectionInt) {
+	userCollection = collection
+}
 
 // Init initializes the MongoDB driver and connection
 func Init() error {
@@ -38,7 +53,9 @@ func Init() error {
 	}
 	log.Printf("successfully connected to mongoDB")
 
-	userCollection = client.Database("faceit").Collection("users")
+	userCollection = &MongoCollection{
+		collection: client.Database("faceit").Collection("users"),
+	}
 
 	return nil
 }
