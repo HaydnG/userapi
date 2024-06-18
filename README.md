@@ -56,6 +56,34 @@ protoc --go_out=. --go-grpc_out=. pb/user.proto
 
 This will generate files into the pb directory
 
+### Unit tests / Benchmarks
+```sh
+go test ./... --cover -count=1
+?       userapi/db      [no test files]
+?       userapi/health  [no test files]
+?       userapi/mocks   [no test files]
+?       userapi/pb      [no test files]
+ok      userapi 0.472s  coverage: 74.4% of statements
+ok      userapi/cacheStore      2.191s  coverage: 83.3% of statements
+ok      userapi/data    0.222s  coverage: [no statements]
+ok      userapi/validation      0.190s  coverage: 100.0% of statements
+```
+
+## Benchmarhs
+
+```sh
+pkg: userapi/validation
+cpu: AMD Ryzen 7 5800X3D 8-Core Processor
+BenchmarkNumber-16      46102778                25.43 ns/op            0 B/op          0 allocs/op
+BenchmarkUser-16         3496152               342.2 ns/op             0 B/op          0 allocs/op
+PASS
+ok      userapi/validation      2.900s
+```
+
+## Handler performance
+TODO Measure http/gRPC handler performance
+
+
 ### HTTP Endpoints
 
 - **GET /userapi/getall**: Fetches all users. (20 sec cache)
@@ -241,6 +269,39 @@ service UserService {
 #### Example gRPC Usage with `grpcurl`
 
 You can use `grpcurl` to interact with the gRPC service. Here are some examples:
+
+##### User Watcher
+To listen for any user changes, you can use the following:
+```sh
+grpcurl -plaintext -d '{}' localhost:9090 user.UserService/WatchUsers
+```
+<details><summary>Example Watcher Output (Add + Deletion)</summary>
+
+```json
+{
+  "userId": "fabf2700-3711-45aa-a4c1-aa479b8ec95d",
+  "updateType": "CREATED",
+  "user": {
+    "ID": "fabf2700-3711-45aa-a4c1-aa479b8ec95d",
+    "firstName": "Visage",
+    "lastName": "joe",
+    "nickname": "aXE",
+    "password": "VERYSEcure3343",
+    "email": "joe.jim@example.com",
+    "country": "UK",
+    "createdAt": "2024-06-18T19:34:18.404692100Z",
+    "updatedAt": "2024-06-18T19:34:18.404692100Z"
+  }
+}
+{
+  "userId": "fabf2700-3711-45aa-a4c1-aa479b8ec95d",
+  "updateType": "DELETED",
+  "user": {
+    "ID": "fabf2700-3711-45aa-a4c1-aa479b8ec95d"
+  }
+}
+```
+</details>
 
 ##### 1. **Call AddUser Method**:
 ```sh
