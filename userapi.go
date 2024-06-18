@@ -109,7 +109,11 @@ func start() error {
 	wg.Add(2)
 
 	go func() {
-		defer wg.Done()
+		defer func() {
+			wg.Done()
+			log.Println("httpServer has finished shutting down")
+		}()
+
 		log.Println("Starting HTTP server on port 8080")
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server ListenAndServe: %v", err)
@@ -117,7 +121,10 @@ func start() error {
 	}()
 
 	go func() {
-		defer wg.Done()
+		defer func() {
+			wg.Done()
+			log.Println("gRPC Server has finished shutting down")
+		}()
 		log.Println("Starting gRPC server on port 9090")
 		if err := grpcServer.Serve(grpcLis); err != nil {
 			log.Fatalf("gRPC server Serve: %v", err)
@@ -137,8 +144,8 @@ func start() error {
 		log.Fatalf("HTTP server Shutdown: %v", err)
 	}
 
-	// Gracefully stop the gRPC server
-	grpcServer.GracefulStop()
+	// stop the gRPC server
+	grpcServer.Stop()
 
 	// Wait for the servers to gracefully shutdown
 	wg.Wait()
