@@ -46,7 +46,7 @@ docker-compose up --build
 1. Start the HTTP and gRPC servers:
 
 ```sh
-go run main.go -httpport=8080 -grpcport=9090
+go run userapi.go -httpport=8080 -grpcport=9090
 ```
 
 ### Re-generating from user.proto
@@ -472,3 +472,7 @@ The main file sets up and starts the HTTP and gRPC servers, and handles graceful
 ### Health Checks
 
 The health check handler ensures that both HTTP and gRPC servers are ready to serve requests.
+
+
+# Service Running Example
+![Example](/images/userService_running.png)
