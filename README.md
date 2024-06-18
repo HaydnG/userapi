@@ -22,9 +22,9 @@ This is a microservice designed to manage access to users, implemented in Go. Th
 ### Installation
 
 1. Clone the repository:
-
+(Or extract the .zip file given) - The repo below is private
 ```sh
-git clone https://github.com/yourusername/userapi.git
+git clone https://github.com/HaydnG/faceit-task
 cd userapi
 ```
 
