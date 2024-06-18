@@ -35,8 +35,9 @@ go mod tidy
 ```
 
 3. Ensure MongoDB is running. If you have Docker installed, you can run MongoDB using:
-This will expose a mongoDB server hosted at `:27017`
+
 ```sh
+#This will expose a mongoDB server hosted at `:27017`
 docker-compose up --build
 ```
 
