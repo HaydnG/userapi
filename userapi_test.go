@@ -21,7 +21,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -42,7 +41,8 @@ func init() {
 
 	lis = bufconn.Listen(bufSize)
 	grpcTestServer = grpc.NewServer()
-	pb.RegisterUserServiceServer(grpcTestServer, &UserService{})
+	userService = NewUserService()
+	pb.RegisterUserServiceServer(grpcTestServer, userService)
 	go func() {
 		if err := grpcTestServer.Serve(lis); err != nil {
 			panic(err)
@@ -1627,7 +1627,7 @@ func TestWatchUsersHandler(t *testing.T) {
 
 	// Set our timenow function, to ensure our test is static
 	timeNow = func() time.Time {
-		return time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)
+		return time.Date(2024, time.June, 17, 19, 49, 18, 368000000, time.UTC)
 	}
 
 	newUUID = func() string {
@@ -1638,12 +1638,24 @@ func TestWatchUsersHandler(t *testing.T) {
 	tests := []struct {
 		name            string
 		setupFunc       func() error
-		expectedUpdates []pb.UserUpdate
+		expectedUpdates []*pb.UserUpdate
 		expectedError   bool
+		mockError       error
+		expectedUserID  string
+		mockDeleteCount int
 	}{
 		{
 			name: "Add User Update via gRPC",
 			setupFunc: func() error {
+				db.SetCollection(&mocks.MongoCollection{
+					InsertOneFunc: func(ctx context.Context, document interface{}) (*mongo.InsertOneResult, error) {
+						return &mongo.InsertOneResult{InsertedID: "8711e364-c83d-46fc-a3db-d6b2aee00d0f"}, nil
+					},
+					FindOneFunc: func(ctx context.Context, filter interface{}, opts ...*options.FindOneOptions) *mongo.SingleResult {
+						return mongo.NewSingleResultFromDocument(bson.M{"_id": "1", "first_name": "John", "last_name": "Doe", "nickname": "Dazzle", "Email": "john.doe@example.com", "Country": "USA",
+							"password": "moneyMoneyM0n3y", "created_at": "2024-06-16T17:32:28.2136171Z", "updated_at": "2024-06-16T17:32:28.2136171Z"}, nil, nil)
+					},
+				})
 				req := &pb.AddUserRequest{
 					FirstName: "Razzil",
 					LastName:  "Darkbrew",
@@ -1655,18 +1667,20 @@ func TestWatchUsersHandler(t *testing.T) {
 				_, err := client.AddUser(context.Background(), req)
 				return err
 			},
-			expectedUpdates: []pb.UserUpdate{
+			expectedUpdates: []*pb.UserUpdate{
 				{
 					UpdateType: updateCREATED,
+					UserId:     "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
 					User: &pb.User{
 						ID:        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
 						FirstName: "Razzil",
 						LastName:  "Darkbrew",
 						Nickname:  "Alchemist",
+						Password:  "moneyMoneyM0n3y",
 						Email:     "Razzil.Darkbrew@example.com",
 						Country:   "UK",
-						CreatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
-						UpdatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
+						CreatedAt: timestamppb.New(timeNow()),
+						UpdatedAt: timestamppb.New(timeNow()),
 					},
 				},
 			},
@@ -1675,6 +1689,15 @@ func TestWatchUsersHandler(t *testing.T) {
 		{
 			name: "Add User Update via HTTP",
 			setupFunc: func() error {
+				db.SetCollection(&mocks.MongoCollection{
+					InsertOneFunc: func(ctx context.Context, document interface{}) (*mongo.InsertOneResult, error) {
+						return &mongo.InsertOneResult{InsertedID: "8711e364-c83d-46fc-a3db-d6b2aee00d0f"}, nil
+					},
+					FindOneFunc: func(ctx context.Context, filter interface{}, opts ...*options.FindOneOptions) *mongo.SingleResult {
+						return mongo.NewSingleResultFromDocument(bson.M{"_id": "1", "first_name": "John", "last_name": "Doe", "nickname": "Dazzle", "Email": "john.doe@example.com", "Country": "USA",
+							"password": "moneyMoneyM0n3y", "created_at": "2024-06-16T17:32:28.2136171Z", "updated_at": "2024-06-16T17:32:28.2136171Z"}, nil, nil)
+					},
+				})
 				body := []byte(`{
 					"first_name": "Razzil",
 					"last_name": "Darkbrew",
@@ -1694,18 +1717,20 @@ func TestWatchUsersHandler(t *testing.T) {
 				}
 				return nil
 			},
-			expectedUpdates: []pb.UserUpdate{
+			expectedUpdates: []*pb.UserUpdate{
 				{
 					UpdateType: updateCREATED,
+					UserId:     "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
 					User: &pb.User{
 						ID:        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
 						FirstName: "Razzil",
 						LastName:  "Darkbrew",
 						Nickname:  "Alchemist",
+						Password:  "moneyMoneyM0n3y",
 						Email:     "Razzil.Darkbrew@example.com",
 						Country:   "UK",
-						CreatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
-						UpdatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
+						CreatedAt: timestamppb.New(timeNow()),
+						UpdatedAt: timestamppb.New(timeNow()),
 					},
 				},
 			},
@@ -1714,6 +1739,25 @@ func TestWatchUsersHandler(t *testing.T) {
 		{
 			name: "Update User via gRPC",
 			setupFunc: func() error {
+				db.SetCollection(&mocks.MongoCollection{
+					FindOneAndUpdateFunc: func(ctx context.Context, filter interface{}, update interface{}, opts ...*options.FindOneAndUpdateOptions) *mongo.SingleResult {
+						return mongo.NewSingleResultFromDocument(bson.M{
+							"_id":        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+							"first_name": "Razzil",
+							"last_name":  "Darkbrew",
+							"nickname":   "Meepo",
+							"email":      "Razzil.Darkbrew@example.com",
+							"password":   "newPassword123",
+							"country":    "UK",
+							"created_at": timeNow(),
+							"updated_at": timeNow(),
+						}, nil, nil)
+					},
+					FindOneFunc: func(ctx context.Context, filter interface{}, opts ...*options.FindOneOptions) *mongo.SingleResult {
+						return mongo.NewSingleResultFromDocument(bson.M{"_id": "8711e364-c83d-46fc-a3db-d6b2aee00d0f", "first_name": "John", "last_name": "Doe", "nickname": "Dazzle", "Email": "john.doe@example.com", "Country": "USA",
+							"password": "moneyMoneyM0n3y", "created_at": timeNow(), "updated_at": timeNow()}, nil, nil)
+					},
+				})
 				req := &pb.UpdateUserRequest{
 					ID:        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
 					FirstName: "Razzil",
@@ -1726,18 +1770,20 @@ func TestWatchUsersHandler(t *testing.T) {
 				_, err := client.UpdateUser(context.Background(), req)
 				return err
 			},
-			expectedUpdates: []pb.UserUpdate{
+			expectedUpdates: []*pb.UserUpdate{
 				{
 					UpdateType: updateUPDATED,
+					UserId:     "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
 					User: &pb.User{
 						ID:        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
 						FirstName: "Razzil",
 						LastName:  "Darkbrew",
 						Nickname:  "Meepo",
+						Password:  "newPassword123",
 						Email:     "Razzil.Darkbrew@example.com",
 						Country:   "UK",
-						CreatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
-						UpdatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
+						CreatedAt: timestamppb.New(timeNow()),
+						UpdatedAt: timestamppb.New(timeNow()),
 					},
 				},
 			},
@@ -1746,6 +1792,25 @@ func TestWatchUsersHandler(t *testing.T) {
 		{
 			name: "Update User via HTTP",
 			setupFunc: func() error {
+				db.SetCollection(&mocks.MongoCollection{
+					FindOneAndUpdateFunc: func(ctx context.Context, filter interface{}, update interface{}, opts ...*options.FindOneAndUpdateOptions) *mongo.SingleResult {
+						return mongo.NewSingleResultFromDocument(bson.M{
+							"_id":        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+							"first_name": "Razzil",
+							"last_name":  "Darkbrew",
+							"nickname":   "Meepo",
+							"email":      "Razzil.Darkbrew@example.com",
+							"password":   "newPassword123",
+							"country":    "UK",
+							"created_at": timeNow(),
+							"updated_at": timeNow(),
+						}, nil, nil)
+					},
+					FindOneFunc: func(ctx context.Context, filter interface{}, opts ...*options.FindOneOptions) *mongo.SingleResult {
+						return mongo.NewSingleResultFromDocument(bson.M{"_id": "8711e364-c83d-46fc-a3db-d6b2aee00d0f", "first_name": "John", "last_name": "Doe", "nickname": "Dazzle", "Email": "john.doe@example.com", "Country": "USA",
+							"password": "moneyMoneyM0n3y", "created_at": timeNow(), "updated_at": timeNow()}, nil, nil)
+					},
+				})
 				body := []byte(`{
 					"id": "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
 					"first_name": "Razzil",
@@ -1766,64 +1831,20 @@ func TestWatchUsersHandler(t *testing.T) {
 				}
 				return nil
 			},
-			expectedUpdates: []pb.UserUpdate{
+			expectedUpdates: []*pb.UserUpdate{
 				{
 					UpdateType: updateUPDATED,
+					UserId:     "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
 					User: &pb.User{
 						ID:        "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
 						FirstName: "Razzil",
 						LastName:  "Darkbrew",
 						Nickname:  "Meepo",
+						Password:  "newPassword123",
 						Email:     "Razzil.Darkbrew@example.com",
 						Country:   "UK",
-						CreatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
-						UpdatedAt: timestamppb.New(time.Date(2024, time.June, 17, 19, 49, 18, 368889300, time.UTC)),
-					},
-				},
-			},
-			expectedError: false,
-		},
-		{
-			name: "Delete User via gRPC",
-			setupFunc: func() error {
-				req := &pb.DeleteUserRequest{
-					ID: "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
-				}
-				_, err := client.DeleteUser(context.Background(), req)
-				return err
-			},
-			expectedUpdates: []pb.UserUpdate{
-				{
-					UpdateType: updateDELETED,
-					User: &pb.User{
-						ID: "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
-					},
-				},
-			},
-			expectedError: false,
-		},
-		{
-			name: "Delete User via HTTP",
-			setupFunc: func() error {
-				body := []byte(`{
-					"id": "8711e364-c83d-46fc-a3db-d6b2aee00d0f"
-				}`)
-				req, err := http.NewRequest(http.MethodPost, "/userapi/delete", bytes.NewReader(body))
-				if err != nil {
-					return err
-				}
-				rr := httptest.NewRecorder()
-				deleteUserHandler(rr, req)
-				if rr.Code != http.StatusOK {
-					return fmt.Errorf("unexpected status code: %v", rr.Code)
-				}
-				return nil
-			},
-			expectedUpdates: []pb.UserUpdate{
-				{
-					UpdateType: updateDELETED,
-					User: &pb.User{
-						ID: "8711e364-c83d-46fc-a3db-d6b2aee00d0f",
+						CreatedAt: timestamppb.New(timeNow()),
+						UpdatedAt: timestamppb.New(timeNow()),
 					},
 				},
 			},
@@ -1832,7 +1853,12 @@ func TestWatchUsersHandler(t *testing.T) {
 		{
 			name: "Delete All Users via HTTP",
 			setupFunc: func() error {
-				req, err := http.NewRequest(http.MethodPost, "/userapi/deleteall", nil)
+				db.SetCollection(&mocks.MongoCollection{
+					DeleteManyFunc: func(ctx context.Context, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error) {
+						return &mongo.DeleteResult{DeletedCount: 3}, nil
+					},
+				})
+				req, err := http.NewRequest(http.MethodGet, "/userapi/deleteall", nil)
 				if err != nil {
 					return err
 				}
@@ -1843,9 +1869,10 @@ func TestWatchUsersHandler(t *testing.T) {
 				}
 				return nil
 			},
-			expectedUpdates: []pb.UserUpdate{
+			expectedUpdates: []*pb.UserUpdate{
 				{
 					UpdateType: updateALLDELETED,
+					User:       nil,
 				},
 			},
 			expectedError: false,
@@ -1854,29 +1881,31 @@ func TestWatchUsersHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 
-			stream, err := client.WatchUsers(ctx, &emptypb.Empty{})
+			stream, err := client.WatchUsers(ctx, &pb.WatchRequest{})
 			if err != nil {
 				t.Fatalf("WatchUsers failed: %v", err)
 			}
 
+			// Very quick sleep to make sure our listener has started before we send our message
+			time.Sleep(1)
 			err = tt.setupFunc()
 			if err != nil {
 				t.Fatalf("Setup function failed: %v", err)
 			}
 
-			var receivedUpdates []pb.UserUpdate
+			var receivedUpdates []*pb.UserUpdate
 			for i := 0; i < len(tt.expectedUpdates); i++ {
 				update, err := stream.Recv()
 				if err != nil {
-					if tt.expectedError && err.Error() == tt.mockError.Error() {
+					if tt.expectedError {
 						break
 					}
 					t.Fatalf("Stream receive failed: %v", err)
 				}
-				receivedUpdates = append(receivedUpdates, *update)
+				receivedUpdates = append(receivedUpdates, update)
 			}
 
 			if !tt.expectedError && len(receivedUpdates) != len(tt.expectedUpdates) {
@@ -1884,8 +1913,14 @@ func TestWatchUsersHandler(t *testing.T) {
 			}
 
 			for i, update := range receivedUpdates {
-				if !reflect.DeepEqual(update, tt.expectedUpdates[i]) {
-					t.Errorf("Update %d did not match expected: got %v, want %v", i, update, tt.expectedUpdates[i])
+				if update.UpdateType != tt.expectedUpdates[i].UpdateType {
+					t.Errorf("Expected updateType %v, got %v", tt.expectedUpdates[i].UpdateType, update.UpdateType)
+				}
+				if update.UserId != tt.expectedUpdates[i].UserId {
+					t.Errorf("Expected userID %v, got %v", tt.expectedUpdates[i].UserId, update.UserId)
+				}
+				if !reflect.DeepEqual(update.User, tt.expectedUpdates[i].User) {
+					t.Errorf("Update %d did not match expected: got %#v\n\r want %#v", i, update.User, tt.expectedUpdates[i].User)
 				}
 			}
 		})

@@ -408,7 +408,7 @@ func updateUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Spawn a go routine, so we dont impact the request
 	go func() {
-		userService.NotifyUpdate(user.ID, updateUPDATED, convertToProtoUser(&user))
+		userService.NotifyUpdate(user.ID, updateUPDATED, convertToProtoUser(updatedUser))
 	}()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -615,7 +615,7 @@ func (s *UserService) AddUser(ctx context.Context, req *pb.AddUserRequest) (*pb.
 
 	// Spawn a go routine, so we dont impact the request
 	go func() {
-		userService.NotifyUpdate(user.ID, updateCREATED, convertToProtoUser(&user))
+		s.NotifyUpdate(user.ID, updateCREATED, convertToProtoUser(&user))
 	}()
 
 	return convertToProtoUser(&user), nil
@@ -668,7 +668,7 @@ func (s *UserService) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest)
 
 	// Spawn a go routine, so we dont impact the request
 	go func() {
-		userService.NotifyUpdate(user.ID, updateUPDATED, convertToProtoUser(&user))
+		s.NotifyUpdate(user.ID, updateUPDATED, convertToProtoUser(updatedUser))
 	}()
 
 	return convertToProtoUser(updatedUser), nil
@@ -694,7 +694,7 @@ func (s *UserService) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest)
 
 	// Spawn a go routine, so we dont impact the request
 	go func() {
-		userService.NotifyUpdate(req.ID, updateDELETED, &pb.User{ID: req.ID})
+		s.NotifyUpdate(req.ID, updateDELETED, &pb.User{ID: req.ID})
 	}()
 
 	return nil, nil
